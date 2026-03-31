@@ -796,3 +796,503 @@ if __name__ == "__main__":
     print("  Note: For informational purposes only.")
     print("  Consult a financial advisor for investment decisions.")
     print("=" * 60)
+
+
+# =============================================================================
+# FULL DEAL ANALYZER (Based on Real Landlord Proforma)
+# =============================================================================
+# This mirrors the evaluation workflow of an experienced SFR landlord
+# analyzing 5-year deal economics with dual financing, tax impact,
+# and net worth accumulation.
+
+@dataclass
+class YearProjection:
+    """Single year in a 5-year deal projection."""
+    year: int
+    rental_income: float
+    insurance: float
+    taxes: float
+    repairs_expenses: float
+    mortgage_interest: float
+    total_expenses: float
+    cash_flow_annual: float
+    cash_flow_monthly: float
+    roi_before_tax: float
+    cash_flow_after_mortgage_monthly: float
+    cash_flow_after_mortgage_annual: float
+    roi_after_mortgage: float
+    depreciation: float
+    tax_deduction: float
+    tax_saved: float
+    after_tax_cash_flow: float
+    after_tax_roi: float
+    principal_paid: float
+    property_value: float
+    net_worth_addition: float
+
+
+def analyze_deal(
+    # Property
+    address: str = "",
+    purchase_price: float = 0,
+    assessed_value: float = 0,
+    
+    # Financing — Primary Mortgage
+    down_payment: float = 0,
+    loan_interest_rate: float = 7.0,
+    loan_term_years: int = 20,
+    
+    # Financing — Line of Credit (optional second financing layer)
+    loc_amount: float = 0,
+    loc_interest_rate: float = 0,
+    loc_term_years: float = 0,
+    
+    # Closing Costs
+    prepaid_items: float = 0,
+    closing_costs: float = 0,
+    
+    # Property Expenses
+    property_tax_rate_per_100: float = 1.0,
+    annual_insurance: float = 550,
+    monthly_maintenance: float = 50,
+    
+    # Income
+    monthly_rent: float = 0,
+    rent_increase_pct: float = 3.0,
+    
+    # Rehab
+    repairs_estimate: float = 0,
+    months_to_rent: int = 1,
+    
+    # Growth & Inflation
+    expense_inflation_pct: float = 2.0,
+    property_growth_pct: float = 2.0,
+    
+    # Tax
+    tax_bracket_pct: float = 25.0,
+    land_value_pct: float = 0.20,
+    
+    # Projection
+    projection_years: int = 5,
+) -> dict:
+    """
+    Complete rental property deal analysis with 5-year projection.
+    
+    Models dual financing (mortgage + LOC), carrying costs during rehab,
+    tax deductions with depreciation, and net worth accumulation.
+    Based on a real landlord's evaluation workflow for SFR acquisitions.
+    
+    Args:
+        address: Property address (for display)
+        purchase_price: Total purchase price
+        assessed_value: City assessed value for tax calculation.
+                       If 0, uses purchase_price * 0.75 as estimate.
+        
+        down_payment: Down payment amount (not percentage)
+        loan_interest_rate: Primary mortgage rate (e.g., 7.0 for 7%)
+        loan_term_years: Mortgage term in years
+        
+        loc_amount: Line of credit amount (0 to skip LOC)
+        loc_interest_rate: LOC annual interest rate (e.g., 11.5 for 11.5%)
+        loc_term_years: LOC term in years
+        
+        prepaid_items: Prepaid insurance + taxes at closing
+        closing_costs: Total closing costs
+        
+        property_tax_rate_per_100: Local tax rate per $100 of assessed value
+                                  (e.g., 1.04 for Chesapeake VA, 0.99 for VB)
+        annual_insurance: Annual homeowners insurance
+        monthly_maintenance: Monthly maintenance/expense budget
+        
+        monthly_rent: Expected monthly rental income
+        rent_increase_pct: Annual rent increase percentage (e.g., 3.0 for 3%)
+        
+        repairs_estimate: Initial rehab/repair costs
+        months_to_rent: Months of vacancy during repairs before first tenant
+        
+        expense_inflation_pct: Annual inflation on insurance, taxes, expenses
+        property_growth_pct: Annual property value appreciation
+        
+        tax_bracket_pct: Marginal tax bracket (e.g., 25.0 for 25%)
+        land_value_pct: Land value as fraction of purchase price (for depreciation)
+        
+        projection_years: Number of years to project (default 5)
+    
+    Returns:
+        Dictionary with complete deal analysis and year-by-year projections
+    
+    Example:
+        >>> result = analyze_deal(
+        ...     address="1006 Potomac Ave, Portsmouth",
+        ...     purchase_price=85000,
+        ...     assessed_value=69140,
+        ...     down_payment=1700,
+        ...     loan_interest_rate=7.5,
+        ...     loan_term_years=20,
+        ...     loc_amount=0,
+        ...     prepaid_items=1097,
+        ...     closing_costs=3393,
+        ...     property_tax_rate_per_100=1.32,
+        ...     annual_insurance=550,
+        ...     monthly_maintenance=370,
+        ...     monthly_rent=1400,
+        ...     rent_increase_pct=3.0,
+        ...     repairs_estimate=0,
+        ...     months_to_rent=1,
+        ... )
+        >>> print(f"Monthly Cash Flow (Year 1): ${result['projections'][0].cash_flow_after_mortgage_monthly:,.2f}")
+        >>> print(f"5-Year Net Worth Added: ${result['five_year_net_worth_addition']:,.2f}")
+    """
+    
+    # --- Derived Values ---
+    if assessed_value == 0:
+        assessed_value = purchase_price * 0.75
+    
+    loan_amount = purchase_price - down_payment
+    annual_taxes = assessed_value * (property_tax_rate_per_100 / 100)
+    annual_maintenance = monthly_maintenance * 12
+    
+    # Depreciation (27.5 year residential)
+    land_value = purchase_price * land_value_pct
+    depreciable_basis = purchase_price - land_value
+    annual_dep = round(depreciable_basis / 27.5, 2)
+    
+    # --- Mortgage Payment ---
+    mortgage_monthly = monthly_mortgage_payment(loan_amount, loan_interest_rate / 100, loan_term_years)
+    mortgage_annual = mortgage_monthly * 12
+    
+    # --- LOC Payment ---
+    if loc_amount > 0 and loc_interest_rate > 0 and loc_term_years > 0:
+        loc_monthly = monthly_mortgage_payment(loc_amount, loc_interest_rate / 100, int(loc_term_years))
+        loc_annual = loc_monthly * 12
+    else:
+        loc_monthly = 0
+        loc_annual = 0
+    
+    # --- Monthly Totals ---
+    monthly_taxes = annual_taxes / 12
+    monthly_insurance = annual_insurance / 12
+    mti_monthly = mortgage_monthly + loc_monthly + monthly_taxes + monthly_insurance
+    mti_annual = mti_monthly * 12
+    
+    # --- Capital Investment ---
+    out_of_pocket = down_payment + prepaid_items + closing_costs
+    mti_during_repairs = mti_monthly * months_to_rent
+    total_capital_investment = out_of_pocket + repairs_estimate + mti_during_repairs
+    
+    # --- Estimate annual mortgage interest vs principal ---
+    # For year 1, most of payment is interest. Use amortization for accuracy.
+    schedule = amortization_schedule(loan_amount, loan_interest_rate / 100, loan_term_years)
+    
+    # Group by year
+    yearly_interest = {}
+    yearly_principal = {}
+    for row in schedule:
+        yr = (row.month - 1) // 12 + 1
+        if yr not in yearly_interest:
+            yearly_interest[yr] = 0
+            yearly_principal[yr] = 0
+        yearly_interest[yr] = round(yearly_interest[yr] + row.interest, 2)
+        yearly_principal[yr] = round(yearly_principal[yr] + row.principal, 2)
+    
+    # LOC amortization (if applicable)
+    loc_yearly_interest = {}
+    loc_yearly_principal = {}
+    if loc_amount > 0 and loc_interest_rate > 0 and loc_term_years > 0:
+        loc_schedule = amortization_schedule(loc_amount, loc_interest_rate / 100, int(loc_term_years))
+        for row in loc_schedule:
+            yr = (row.month - 1) // 12 + 1
+            if yr not in loc_yearly_interest:
+                loc_yearly_interest[yr] = 0
+                loc_yearly_principal[yr] = 0
+            loc_yearly_interest[yr] = round(loc_yearly_interest[yr] + row.interest, 2)
+            loc_yearly_principal[yr] = round(loc_yearly_principal[yr] + row.principal, 2)
+    
+    # --- 5-Year Projection ---
+    projections = []
+    rent_increase = rent_increase_pct / 100
+    exp_inflation = expense_inflation_pct / 100
+    prop_growth = property_growth_pct / 100
+    tax_rate = tax_bracket_pct / 100
+    
+    five_year_income = 0
+    five_year_expenses = 0
+    five_year_cashflow = 0
+    five_year_after_tax_cf = 0
+    five_year_net_worth = 0
+    
+    current_rent = monthly_rent
+    current_insurance = annual_insurance
+    current_taxes = annual_taxes
+    current_maintenance = annual_maintenance
+    current_value = purchase_price
+    
+    for yr in range(1, projection_years + 1):
+        # Income (compounds from year 2)
+        if yr > 1:
+            current_rent = round(current_rent * (1 + rent_increase), 2)
+            current_insurance = round(current_insurance * (1 + exp_inflation), 2)
+            current_taxes = round(current_taxes * (1 + exp_inflation), 2)
+            current_maintenance = round(current_maintenance * (1 + exp_inflation), 2)
+        
+        annual_income = round(current_rent * 12, 2)
+        
+        # Mortgage interest for this year
+        mtg_interest = yearly_interest.get(yr, 0)
+        loc_interest = loc_yearly_interest.get(yr, 0)
+        total_interest = mtg_interest + loc_interest
+        
+        # Principal paid this year
+        mtg_principal = yearly_principal.get(yr, 0)
+        loc_principal = loc_yearly_principal.get(yr, 0)
+        total_principal = mtg_principal + loc_principal
+        
+        # Total expenses (interest-only for cash flow calc, not principal)
+        total_expenses = round(
+            current_insurance + current_taxes + current_maintenance + total_interest, 2
+        )
+        
+        # Cash flow (before mortgage principal)
+        cf_annual = round(annual_income - total_expenses, 2)
+        cf_monthly = round(cf_annual / 12, 2)
+        roi_before_tax = round(cf_annual / total_capital_investment, 4) if total_capital_investment > 0 else 0
+        
+        # Cash flow after mortgage principal payments
+        cf_after_mtg_annual = round(cf_annual - total_principal, 2)
+        cf_after_mtg_monthly = round(cf_after_mtg_annual / 12, 2)
+        roi_after_mtg = round(cf_after_mtg_annual / total_capital_investment, 4) if total_capital_investment > 0 else 0
+        
+        # Tax deductions
+        tax_deduction = round(
+            -(annual_dep + total_interest +
+              current_insurance + current_taxes + current_maintenance -
+              annual_income), 2
+        )
+        tax_saved = round(tax_deduction * tax_rate, 2)
+        
+        # After-tax cash flow
+        after_tax_cf = round(cf_annual + tax_saved, 2)
+        after_tax_roi = round(after_tax_cf / total_capital_investment, 4) if total_capital_investment > 0 else 0
+        
+        # Property appreciation
+        if yr > 1:
+            current_value = round(current_value * (1 + prop_growth), 2)
+        else:
+            current_value = round(purchase_price * (1 + prop_growth), 2)
+        appreciation = round(current_value - purchase_price, 2) if yr == 1 else round(current_value * prop_growth / (1 + prop_growth), 2)
+        
+        # Net worth addition
+        net_worth_add = round(after_tax_cf + total_principal + appreciation, 2)
+        
+        # Accumulate totals
+        five_year_income += annual_income
+        five_year_expenses += total_expenses
+        five_year_cashflow += cf_after_mtg_annual
+        five_year_after_tax_cf += after_tax_cf
+        five_year_net_worth += net_worth_add
+        
+        projections.append(YearProjection(
+            year=yr,
+            rental_income=annual_income,
+            insurance=current_insurance,
+            taxes=current_taxes,
+            repairs_expenses=current_maintenance,
+            mortgage_interest=total_interest,
+            total_expenses=total_expenses,
+            cash_flow_annual=cf_annual,
+            cash_flow_monthly=cf_monthly,
+            roi_before_tax=roi_before_tax,
+            cash_flow_after_mortgage_monthly=cf_after_mtg_monthly,
+            cash_flow_after_mortgage_annual=cf_after_mtg_annual,
+            roi_after_mortgage=roi_after_mtg,
+            depreciation=annual_dep,
+            tax_deduction=tax_deduction,
+            tax_saved=tax_saved,
+            after_tax_cash_flow=after_tax_cf,
+            after_tax_roi=after_tax_roi,
+            principal_paid=total_principal,
+            property_value=current_value,
+            net_worth_addition=net_worth_add,
+        ))
+    
+    # --- Breakeven Purchase Price ---
+    # What's the max price where annual income covers MTI?
+    annual_income_yr1 = monthly_rent * 12
+    annual_non_mortgage_expenses = annual_insurance + annual_taxes + annual_maintenance
+    available_for_mortgage = annual_income_yr1 - annual_non_mortgage_expenses
+    if available_for_mortgage > 0:
+        max_monthly_payment = available_for_mortgage / 12
+        # Reverse mortgage calculation to find max loan
+        r = (loan_interest_rate / 100) / 12
+        n = loan_term_years * 12
+        if r > 0:
+            max_loan = max_monthly_payment * ((1 + r) ** n - 1) / (r * (1 + r) ** n)
+            breakeven_price = round(max_loan + down_payment, 2)
+        else:
+            breakeven_price = round(max_monthly_payment * n + down_payment, 2)
+    else:
+        breakeven_price = 0
+    
+    return {
+        "address": address,
+        
+        # Purchase
+        "purchase_price": purchase_price,
+        "assessed_value": assessed_value,
+        "down_payment": down_payment,
+        "down_payment_pct": round(down_payment / purchase_price * 100, 2) if purchase_price > 0 else 0,
+        
+        # Financing
+        "loan_amount": loan_amount,
+        "loan_interest_rate": loan_interest_rate,
+        "loan_term_years": loan_term_years,
+        "mortgage_monthly": mortgage_monthly,
+        "mortgage_annual": mortgage_annual,
+        "loc_amount": loc_amount,
+        "loc_interest_rate": loc_interest_rate,
+        "loc_monthly": round(loc_monthly, 2),
+        "loc_annual": round(loc_annual, 2),
+        
+        # Monthly breakdown
+        "monthly_mortgage": mortgage_monthly,
+        "monthly_loc": round(loc_monthly, 2),
+        "monthly_taxes": round(monthly_taxes, 2),
+        "monthly_insurance": round(monthly_insurance, 2),
+        "monthly_maintenance": monthly_maintenance,
+        "monthly_mti_total": round(mti_monthly, 2),
+        "annual_mti_total": round(mti_annual, 2),
+        
+        # Capital investment
+        "out_of_pocket": round(out_of_pocket, 2),
+        "prepaid_items": prepaid_items,
+        "closing_costs": closing_costs,
+        "repairs_estimate": repairs_estimate,
+        "months_to_rent": months_to_rent,
+        "mti_during_repairs": round(mti_during_repairs, 2),
+        "total_capital_investment": round(total_capital_investment, 2),
+        
+        # Taxes
+        "annual_taxes": round(annual_taxes, 2),
+        "property_tax_rate_per_100": property_tax_rate_per_100,
+        "annual_depreciation": annual_dep,
+        "tax_bracket_pct": tax_bracket_pct,
+        
+        # Income
+        "monthly_rent": monthly_rent,
+        "annual_rent_year1": round(monthly_rent * 12, 2),
+        "rent_increase_pct": rent_increase_pct,
+        
+        # Breakeven
+        "breakeven_purchase_price": breakeven_price,
+        
+        # Projections
+        "projections": projections,
+        "projection_years": projection_years,
+        
+        # 5-year totals
+        "five_year_total_income": round(five_year_income, 2),
+        "five_year_total_expenses": round(five_year_expenses, 2),
+        "five_year_total_cashflow": round(five_year_cashflow, 2),
+        "five_year_after_tax_cashflow": round(five_year_after_tax_cf, 2),
+        "five_year_net_worth_addition": round(five_year_net_worth, 2),
+        
+        "note": "For informational purposes only. Consult a financial advisor and tax professional."
+    }
+
+
+def print_deal_analysis(result: dict):
+    """Pretty-print a deal analysis result from analyze_deal()."""
+    
+    p = result
+    projections = p["projections"]
+    
+    print("=" * 72)
+    print(f"  APM DEAL ANALYZER — {p['address'] or 'Property Analysis'}")
+    print("=" * 72)
+    
+    print(f"\n  PROPERTY DETAILS")
+    print(f"  {'-' * 68}")
+    print(f"  Purchase Price:            ${p['purchase_price']:>12,.2f}")
+    print(f"  Assessed Value:            ${p['assessed_value']:>12,.2f}")
+    print(f"  Down Payment ({p['down_payment_pct']:.1f}%):       ${p['down_payment']:>12,.2f}")
+    print(f"  Loan Amount:               ${p['loan_amount']:>12,.2f}")
+    
+    print(f"\n  FINANCING")
+    print(f"  {'-' * 68}")
+    print(f"  Mortgage Payment:          ${p['monthly_mortgage']:>12,.2f}/mo  ({p['loan_interest_rate']:.1f}% / {p['loan_term_years']}yr)")
+    if p['loc_amount'] > 0:
+        print(f"  LOC Payment:               ${p['monthly_loc']:>12,.2f}/mo  ({p['loc_interest_rate']:.1f}%)")
+    print(f"  Taxes:                     ${p['monthly_taxes']:>12,.2f}/mo")
+    print(f"  Insurance:                 ${p['monthly_insurance']:>12,.2f}/mo")
+    print(f"  Maintenance:               ${p['monthly_maintenance']:>12,.2f}/mo")
+    print(f"  Total MTI:                 ${p['monthly_mti_total']:>12,.2f}/mo  (${p['annual_mti_total']:>,.2f}/yr)")
+    
+    print(f"\n  CAPITAL INVESTMENT")
+    print(f"  {'-' * 68}")
+    print(f"  Out of Pocket:             ${p['out_of_pocket']:>12,.2f}")
+    print(f"    Down Payment:            ${p['down_payment']:>12,.2f}")
+    print(f"    Prepaid Items:           ${p['prepaid_items']:>12,.2f}")
+    print(f"    Closing Costs:           ${p['closing_costs']:>12,.2f}")
+    print(f"  Repairs Estimate:          ${p['repairs_estimate']:>12,.2f}")
+    print(f"  MTI During Repairs ({p['months_to_rent']}mo):  ${p['mti_during_repairs']:>12,.2f}")
+    print(f"  Total Capital Required:    ${p['total_capital_investment']:>12,.2f}")
+    
+    print(f"\n  BREAKEVEN ANALYSIS")
+    print(f"  {'-' * 68}")
+    print(f"  Max Purchase Price:        ${p['breakeven_purchase_price']:>12,.2f}")
+    print(f"  Monthly Rent:              ${p['monthly_rent']:>12,.2f}")
+    
+    print(f"\n  {p['projection_years']}-YEAR PROJECTION")
+    print(f"  {'-' * 68}")
+    
+    # Header
+    header = f"  {'':30}"
+    for proj in projections:
+        header += f"{'Year ' + str(proj.year):>10}"
+    print(header)
+    print(f"  {'-' * 68}")
+    
+    # Rows
+    def row(label, values, fmt="${:>9,.0f}"):
+        line = f"  {label:30}"
+        for v in values:
+            line += fmt.format(v)
+        return line
+    
+    print(row("Rental Income", [p.rental_income for p in projections]))
+    print(f"  {'-' * 68}")
+    print(row("Insurance", [p.insurance for p in projections]))
+    print(row("Taxes", [p.taxes for p in projections]))
+    print(row("Repairs/Maintenance", [p.repairs_expenses for p in projections]))
+    print(row("Mortgage Interest", [p.mortgage_interest for p in projections]))
+    print(row("Total Expenses", [p.total_expenses for p in projections]))
+    print(f"  {'-' * 68}")
+    print(row("Cash Flow (Annual)", [p.cash_flow_annual for p in projections]))
+    print(row("Cash Flow (Monthly)", [p.cash_flow_monthly for p in projections]))
+    print(row("ROI Before Tax", [p.roi_before_tax * 100 for p in projections], fmt="{:>9.1f}%"))
+    print(f"  {'-' * 68}")
+    print(row("After Mortgage (Monthly)", [p.cash_flow_after_mortgage_monthly for p in projections]))
+    print(row("ROI After Mortgage", [p.roi_after_mortgage * 100 for p in projections], fmt="{:>9.1f}%"))
+    print(f"  {'-' * 68}")
+    print(row("Depreciation", [p.depreciation for p in projections]))
+    print(row("Tax Deduction", [p.tax_deduction for p in projections]))
+    print(row("Tax Saved ({}%)".format(int(p['tax_bracket_pct'])), [p.tax_saved for p in projections]))
+    print(f"  {'-' * 68}")
+    print(row("After-Tax Cash Flow", [p.after_tax_cash_flow for p in projections]))
+    print(row("After-Tax ROI", [p.after_tax_roi * 100 for p in projections], fmt="{:>9.1f}%"))
+    print(f"  {'-' * 68}")
+    print(row("Principal Paid", [p.principal_paid for p in projections]))
+    print(row("Property Value", [p.property_value for p in projections]))
+    print(row("Net Worth Addition", [p.net_worth_addition for p in projections]))
+    
+    print(f"\n  {p['projection_years']}-YEAR TOTALS")
+    print(f"  {'-' * 68}")
+    print(f"  Total Income:              ${p['five_year_total_income']:>12,.2f}")
+    print(f"  Total Expenses:            ${p['five_year_total_expenses']:>12,.2f}")
+    print(f"  Total Cash Flow:           ${p['five_year_total_cashflow']:>12,.2f}")
+    print(f"  After-Tax Cash Flow:       ${p['five_year_after_tax_cashflow']:>12,.2f}")
+    print(f"  Net Worth Added:           ${p['five_year_net_worth_addition']:>12,.2f}")
+    print("=" * 72)
+    print(f"  Note: For informational purposes only.")
+    print(f"  Consult a financial advisor for investment decisions.")
+    print("=" * 72)
