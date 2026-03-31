@@ -4,116 +4,109 @@ Rental property financial calculators for investors and landlords. No dependenci
 
 Built by landlords who use these calculations to evaluate real deals on real properties.
 
-## What's Included
+## Highlights
 
-**Acquisition Analysis:** Net Operating Income (NOI), Cap Rate, Cash-on-Cash Return, Gross Rent Multiplier, Rent-to-Price Ratio (1% Rule test), Break-Even Ratio, Debt Service Coverage Ratio
+**Full Deal Analyzer** — analyze_deal() runs a complete 5-year proforma with dual financing (mortgage + line of credit), carrying costs during rehab, tax deductions with depreciation, and net worth accumulation. Based on a real landlord's evaluation workflow for SFR acquisitions.
 
-**Mortgage & Financing:** Monthly payment calculator, full amortization schedule with optional extra payments, Loan-to-Value ratio
+**18 Individual Calculators** — NOI, Cap Rate, Cash-on-Cash, DSCR, amortization schedules, depreciation schedules, capital gains tax estimates, and more.
 
-**Tax & Depreciation:** Straight-line depreciation (residential 27.5yr, commercial 39yr), full depreciation schedule, capital gains tax estimator with depreciation recapture
+**Zero Dependencies** — Pure Python 3.7+. Just download and import.
 
-**Complete Deal Analyzer:** Run all metrics at once with `analyze_property()` — one function call, full picture.
-
-## Quick Start
+## Deal Analyzer
 
 ```python
-from rental_calc import analyze_property
+from rental_calc import analyze_deal, print_deal_analysis
 
-result = analyze_property(
-    purchase_price=250000,
-    monthly_rent=2000,
-    down_payment_pct=0.25,
-    interest_rate=0.07,
-    annual_operating_expenses=9600
+result = analyze_deal(
+    address="1006 Potomac Ave, Portsmouth",
+    purchase_price=85000,
+    down_payment=1700,
+    loan_interest_rate=7.5,
+    loan_term_years=20,
+    property_tax_rate_per_100=1.32,
+    annual_insurance=550,
+    monthly_maintenance=370,
+    monthly_rent=1400,
+    rent_increase_pct=3.0,
+    prepaid_items=1097,
+    closing_costs=3393,
 )
 
-print(f"Cap Rate: {result['cap_rate_pct']}%")
-print(f"Cash-on-Cash: {result['cash_on_cash_pct']}%")
-print(f"Monthly Cash Flow: ${result['monthly_cashflow']}")
-print(f"1% Rule: {result['one_pct_rule']}")
+print_deal_analysis(result)
 ```
 
-## CLI Demo
+## What Makes This Different
 
-```bash
-python rental_calc.py
+Most rental calculators give you a snapshot. This analyzer models what actually happens over time:
+
+- **Dual financing**: Mortgage + optional line of credit with separate rates and terms
+- **Carrying costs during rehab**: Mortgage/taxes/insurance paid while property sits vacant
+- **Compounding inflation**: Insurance, taxes, and maintenance grow at configurable rate
+- **Actual amortization interest**: Uses real amortization schedule, not flat estimates
+- **Tax deductions**: Depreciation + interest + expenses, with configurable tax bracket
+- **After-tax cash flow**: What you actually keep after the IRS
+- **Net worth tracking**: Cash flow + principal paydown + appreciation = true wealth building
+- **Breakeven price**: Maximum purchase price where the deal still works
+- **Flexible tax rates**: Input your local property tax rate per $100 — works for any city
+
+## Dual Financing (Mortgage + LOC)
+
+Many landlords use a line of credit for down payments or rehab:
+
+```python
+result = analyze_deal(
+    purchase_price=150000,
+    down_payment=30000,
+    loan_interest_rate=7.0,
+    loan_term_years=30,
+    loc_amount=20000,
+    loc_interest_rate=11.5,
+    loc_term_years=7,
+    monthly_rent=1500,
+    repairs_estimate=20000,
+    months_to_rent=2,
+)
 ```
-
-Outputs a formatted analysis of a sample property showing all key metrics.
 
 ## Individual Calculators
 
 ```python
 from rental_calc import *
 
-# NOI
-noi = net_operating_income(
-    gross_rent=24000,
-    vacancy_rate=0.05,
-    operating_expenses=9600
-)
-
-# Cap Rate
+noi = net_operating_income(gross_rent=24000, vacancy_rate=0.05, operating_expenses=9600)
 cap = cap_rate(noi=13200, purchase_price=250000)
-
-# Mortgage Payment
-payment = monthly_mortgage_payment(
-    principal=200000,
-    annual_rate=0.07,
-    years=30
-)
-
-# Full Amortization Schedule
-schedule = amortization_schedule(200000, 0.07, 30)
-print(f"Total interest paid: ${schedule[-1].cumulative_interest:,.2f}")
-
-# Depreciation Schedule
-dep = depreciation_schedule(
-    cost_basis=250000,
-    land_value=50000,
-    method='residential'
-)
-
-# Capital Gains Tax Estimate
-tax = capital_gains_tax_estimate(
-    sale_price=350000,
-    original_cost_basis=250000,
-    accumulated_depreciation=36364,
-    selling_costs=21000
-)
-print(f"Estimated tax: ${tax['total_estimated_tax']:,.2f}")
+payment = monthly_mortgage_payment(200000, 0.07, 30)
+schedule = amortization_schedule(200000, 0.07, 30, extra_payment=200)
+dep = depreciation_schedule(250000, 50000, method='residential')
+tax = capital_gains_tax_estimate(sale_price=350000, original_cost_basis=250000, accumulated_depreciation=36364)
 ```
 
 ## All Functions
 
 | Function | Description |
 |----------|-------------|
-| `net_operating_income()` | NOI = Effective Income - Operating Expenses |
-| `cap_rate()` | Cap Rate = NOI / Purchase Price |
-| `cash_on_cash_return()` | CoC = Cash Flow / Cash Invested |
-| `gross_rent_multiplier()` | GRM = Price / Annual Rent |
-| `rent_to_price_ratio()` | Monthly Rent / Price (1% Rule) |
-| `break_even_ratio()` | (Expenses + Debt) / Income |
-| `debt_service_coverage_ratio()` | DSCR = NOI / Debt Service |
-| `monthly_mortgage_payment()` | Standard amortization P&I |
-| `amortization_schedule()` | Full schedule with extra payments |
-| `loan_to_value()` | LTV = Loan / Value |
-| `operating_expense_ratio()` | OER = Expenses / Income |
-| `price_per_unit()` | Multi-family comparison |
-| `cost_per_sqft()` | Price per square foot |
-| `rent_per_sqft()` | Rent per square foot |
-| `annual_depreciation()` | IRS straight-line (27.5yr / 39yr) |
-| `depreciation_schedule()` | Full schedule with book values |
-| `capital_gains_tax_estimate()` | Sale tax with recapture |
-| `analyze_property()` | All metrics in one call |
-
-## No Dependencies
-
-Zero external packages. Works with Python 3.7+. Just download `rental_calc.py` and import it.
+| analyze_deal() | Full 5-year proforma with dual financing and tax impact |
+| print_deal_analysis() | Pretty-print deal analysis results |
+| analyze_property() | Quick snapshot of all key metrics |
+| net_operating_income() | NOI = Effective Income - Operating Expenses |
+| cap_rate() | Cap Rate = NOI / Purchase Price |
+| cash_on_cash_return() | CoC = Cash Flow / Cash Invested |
+| gross_rent_multiplier() | GRM = Price / Annual Rent |
+| rent_to_price_ratio() | Monthly Rent / Price (1% Rule) |
+| break_even_ratio() | (Expenses + Debt) / Income |
+| debt_service_coverage_ratio() | DSCR = NOI / Debt Service |
+| monthly_mortgage_payment() | Standard amortization P&I |
+| amortization_schedule() | Full schedule with extra payments |
+| loan_to_value() | LTV = Loan / Value |
+| operating_expense_ratio() | OER = Expenses / Income |
+| price_per_unit() | Multi-family comparison |
+| annual_depreciation() | IRS straight-line (27.5yr / 39yr) |
+| depreciation_schedule() | Full schedule with book values |
+| capital_gains_tax_estimate() | Sale tax with depreciation recapture |
 
 ## License
 
-MIT License — use it however you want.
+MIT License
 
 ## About
 
