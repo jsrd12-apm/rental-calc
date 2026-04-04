@@ -31,14 +31,7 @@ The main sheet is protected so formulas and layout are not accidentally overwrit
 
 The `Rental_prop_proforma` sheet is password protected to preserve formulas.
 
-- Password: `2026apm`
-
-If you need to edit formulas or the layout:
-
-1. Open Excel.
-2. Go to `Review`.
-3. Click `Unprotect Sheet`.
-4. Enter the password above.
+If you need a custom editable version for internal use, contact the author for permission and distribution terms.
 
 ## License
 
