@@ -2,7 +2,7 @@
 
 Rental property deal analysis workbook for landlords and property managers.
 
-This repo is the spreadsheet version only. It is meant for people who want to evaluate rental deals directly in Excel without using code.
+This repo is the spreadsheet version only. It is meant for people who want to evaluate rental deals directly in Excel using conservative values learned from experience. Use at your own risk. My experience is limited to the Virginia Market only using Class C/D prorperties. What works in this market may not work in yours. Always check your assumptions. 
 
 ## Files
 
