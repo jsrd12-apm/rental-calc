@@ -2,7 +2,7 @@ rental-calc
 
 Rental property deal analysis workbook for landlords and property managers.
 
-This repo is the spreadsheet version only. It is meant for people who want to evaluate rental deals directly in Excel using conservative values learned from experience. Use at your own risk. My experience is limited to the Virginia Market only using Class C/D prorperties. What works in this market may not work in yours. Always check your assumptions.
+This repo is the spreadsheet version only. It is meant for people who want to evaluate rental deals directly in Excel using conservative values learned from experience. I like to use the max price to breakeven as a guideline to determine if a property is going to cash flow from day one. That is hard to find on class B properties at current market prices but it's not necessary for a good investment. Use at your own risk. My experience is limited to the Virginia Market only using Class C/D prorperties. What works in this market may not work in yours. Always check your assumptions.
 
 Files
 
